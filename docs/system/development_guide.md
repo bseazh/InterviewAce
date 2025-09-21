@@ -8,7 +8,7 @@
 
 必备环境变量：
 - Backend: `.env` 中配置 `DATABASE_URL`、`CORS_ORIGINS`（默认为 `http://localhost:3000`）。
-- Frontend: `.env.local` 中配置 `NEXT_PUBLIC_API_BASE_URL`（默认为 `http://localhost:8000`）、`NEXT_PUBLIC_DEFAULT_PROBLEM_ID`（取自 `problems` 表种子数据）。
+- Frontend: `.env.local` 中配置 `NEXT_PUBLIC_API_BASE_URL`（默认为 `http://localhost:8000`）、`NEXT_PUBLIC_DEFAULT_PROBLEM_ID`（建议使用脚本插入的示例 ID `11111111-1111-1111-1111-111111111111`）。
 
 ### 1.1 本地快速启动
 ```bash
@@ -25,6 +25,9 @@ cd app
 npm install
 npm run dev
 ```
+
+## 示例数据
+- 运行 `PYTHONPATH=backend python backend/scripts/seed_sample_problem.py` 以插入示例题目（Binary Search），供 `/problems/{id}` 与前端练习模块使用。
 
 ## 2. 目录结构
 - `app/`：Next.js 前端（V0.dev 输出，可自定义扩展）。

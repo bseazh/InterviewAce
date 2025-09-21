@@ -24,19 +24,10 @@ Install deps:
 - 回滚：`alembic downgrade -1`
 
 ## Seed 示例（可选）
-进入容器后可用 SQL 手动插入一条 problems 数据以便 PRD2 测试：
+提供了一个脚本自动插入演示题目（ID 固定为 `11111111-1111-1111-1111-111111111111`，供前端默认使用）：
 
 ```
-psql "$DATABASE_URL" <<'SQL'
-INSERT INTO problems (id, title, description, difficulty, solution_code, solution_language, test_cases)
-VALUES (
-  gen_random_uuid(),
-  '二分查找',
-  '# 题目\n给定有序数组和目标值，返回索引或 -1',
-  'easy',
-  'def binary_search(a, t):\n    l, r = 0, len(a)-1\n    while l <= r:\n        m = (l+r)//2\n        if a[m]==t: return m\n        if a[m] < t: l=m+1\n        else: r=m-1\n    return -1',
-  'python',
-  '[{"input": "1 3 5 7\n5", "expectedOutput": "2"}]'::jsonb
-);
-SQL
+PYTHONPATH=backend python backend/scripts/seed_sample_problem.py
 ```
+
+脚本会在不存在时插入一条“Binary Search”题目，包含 3 个测试用例。运行成功后，可将该 ID 写入前端的 `.env.local` 中的 `NEXT_PUBLIC_DEFAULT_PROBLEM_ID`。

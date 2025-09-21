@@ -14,7 +14,7 @@ cp .env.local.example .env.local
 ```
 
 - `NEXT_PUBLIC_API_BASE_URL` – base URL of the FastAPI service (default `http://localhost:8000`).
-- `NEXT_PUBLIC_DEFAULT_PROBLEM_ID` – UUID of a seeded coding problem used by the practice module.
+- `NEXT_PUBLIC_DEFAULT_PROBLEM_ID` – UUID of a seeded coding problem used by the practice module（运行 `PYTHONPATH=backend python backend/scripts/seed_sample_problem.py` 可自动注入示例题目，ID 为 `11111111-1111-1111-1111-111111111111`）。
 
 Ensure the backend enables CORS for your frontend origin (defaults to `http://localhost:3000`).
 
