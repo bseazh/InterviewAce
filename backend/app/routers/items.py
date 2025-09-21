@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, func
 from typing import Optional
 from uuid import UUID
@@ -13,20 +13,10 @@ from app.schemas import (
     KnowledgeItemUpdate,
     PaginatedKnowledgeItems,
 )
+from app.serializers import serialize_knowledge_item
 
 
 router = APIRouter(prefix="/api/v1", tags=["items"])
-
-
-def to_out(item: models.KnowledgeItem) -> KnowledgeItemOut:
-    return KnowledgeItemOut(
-        id=item.id,
-        question_id=item.question_id,
-        flashcard=item.flashcard,
-        mindmap=item.mindmap,
-        code=item.code,
-        project_usage=item.project_usage,
-    )
 
 
 @router.get("/items/{item_id}", response_model=KnowledgeItemOut)
@@ -34,7 +24,7 @@ def get_item(item_id: UUID, db: Session = Depends(get_db)):
     item = db.get(models.KnowledgeItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="item not found")
-    return to_out(item)
+    return serialize_knowledge_item(item)
 
 
 @router.put("/items/{item_id}", response_model=KnowledgeItemOut)
@@ -55,7 +45,7 @@ def update_item(item_id: UUID, payload: KnowledgeItemUpdate, db: Session = Depen
     db.add(item)
     db.commit()
     db.refresh(item)
-    return to_out(item)
+    return serialize_knowledge_item(item)
 
 
 @router.get("/items", response_model=PaginatedKnowledgeItems)
@@ -73,7 +63,10 @@ def list_items(
         page_size = 20
 
     filters = []
-    stmt_base = select(models.KnowledgeItem).join(models.Question, models.Question.id == models.KnowledgeItem.question_id)
+    stmt_base = select(models.KnowledgeItem).options(joinedload(models.KnowledgeItem.question))
+
+    if q or tag or difficulty:
+        stmt_base = stmt_base.join(models.Question, models.Question.id == models.KnowledgeItem.question_id)
 
     if q:
         filters.append(models.Question.text.ilike(f"%{q}%"))
@@ -92,9 +85,13 @@ def list_items(
         total_stmt = total_stmt.where(*filters)
     total = db.scalar(total_stmt) or 0
 
-    stmt = stmt_base.order_by(models.KnowledgeItem.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
-    rows = db.execute(stmt).scalars().all()
-    items = [to_out(r) for r in rows]
+    stmt = (
+        stmt_base.order_by(models.KnowledgeItem.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    rows = db.execute(stmt).scalars().unique().all()
+    items = [serialize_knowledge_item(r) for r in rows]
     return PaginatedKnowledgeItems(items=items, total=total, page=page, page_size=page_size)
 
 
@@ -103,7 +100,7 @@ def export_item(item_id: UUID, format: str = Query(default="json", pattern=r"^(j
     item = db.get(models.KnowledgeItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="item not found")
-    question = db.get(models.Question, item.question_id)
+    question = item.question
 
     if format == "json":
         return {
@@ -134,3 +131,15 @@ def export_item(item_id: UUID, format: str = Query(default="json", pattern=r"^(j
     md = "\n".join(md_parts)
     return Response(content=md, media_type="text/markdown")
 
+
+@router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_item(item_id: UUID, db: Session = Depends(get_db)):
+    item = db.get(models.KnowledgeItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="item not found")
+    question = item.question
+    db.delete(item)
+    if question:
+        db.delete(question)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

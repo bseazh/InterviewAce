@@ -1,234 +1,269 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useEffect, useMemo, useState } from "react"
+
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Clock, Trophy, ChevronDown, ChevronUp } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Clock, Trophy, RefreshCw } from "lucide-react"
+
 import { CodeEditor } from "./code-editor"
 import { TestCasePanel } from "./test-case-panel"
+import type { BackendProblem, ExecuteResponseData } from "@/lib/api"
+import { executeCode, fetchProblem } from "@/lib/api"
 
-// 示例题目数据
-const sampleProblem = {
-  id: 1,
-  title: "二叉树的直径",
-  difficulty: "简单",
-  timeLimit: "15分钟",
-  maxSubmissions: 3,
-  description: `给定一棵二叉树，你需要计算它的直径长度。一棵二叉树的直径长度是任意两个结点路径长度中的最大值。这条路径可能穿过也可能不穿过根结点。`,
-  note: "两结点之间的路径长度是以它们之间边的数目表示。",
-  constraints: ["树中结点数目在范围 [1, 500] 内", "-100 ≤ Node.value ≤ 100"],
-  examples: [
-    {
-      input: "[1,2,3,4,5]",
-      output: "3",
-      explanation: "长度为 3, 路径为 [4,2,1,3] 或者 [5,2,1,3]",
-    },
-  ],
+const DEFAULT_PROBLEM_ID = process.env.NEXT_PUBLIC_DEFAULT_PROBLEM_ID || ""
+
+interface ResultCaseView {
+  id: string
+  input: string
+  expected: string
+  actual: string
+  passed: boolean
 }
 
 export function AlgorithmPractice() {
-  const [isTestPanelCollapsed, setIsTestPanelCollapsed] = useState(false)
+  const [problemId, setProblemId] = useState(DEFAULT_PROBLEM_ID)
+  const [inputProblemId, setInputProblemId] = useState(DEFAULT_PROBLEM_ID)
+  const [problem, setProblem] = useState<BackendProblem | null>(null)
+  const [loadingProblem, setLoadingProblem] = useState(false)
+  const [problemError, setProblemError] = useState<string | null>(null)
+
+  const [code, setCode] = useState("")
+  const [language, setLanguage] = useState("python")
+  const [results, setResults] = useState<ResultCaseView[]>([])
+  const [stdout, setStdout] = useState<string | undefined>(undefined)
+  const [stderr, setStderr] = useState<string | undefined>(undefined)
+  const [executionTime, setExecutionTime] = useState<string | undefined>(undefined)
+  const [runStatus, setRunStatus] = useState<string | undefined>(undefined)
   const [isRunning, setIsRunning] = useState(false)
-  const [hasRunTests, setHasRunTests] = useState(false)
-  const [testResults, setTestResults] = useState<any[]>([])
-  const testCasePanelRef = useRef<{ runTests: () => void }>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [runError, setRunError] = useState<string | null>(null)
 
-  const handleRunCode = async () => {
-    setIsRunning(true)
-    setHasRunTests(false)
+  const testCases = useMemo(
+    () =>
+      problem?.test_cases?.map((testCase, index) => ({
+        id: `${index}`,
+        input: testCase.input ?? "",
+        expectedOutput: testCase.expectedOutput ?? "",
+      })) ?? [],
+    [problem],
+  )
 
-    // 模拟代码运行
-    setTimeout(() => {
-      const mockResults = [
-        {
-          id: 1,
-          name: "用例 1",
-          input: "[1,2,3,4,5,6]",
-          expectedOutput: "4",
-          actualOutput: "-1",
-          status: "failed",
-          runtime: "0.01ms",
-        },
-        {
-          id: 2,
-          name: "用例 2",
-          input: "[1,2,3,4,5]",
-          expectedOutput: "3",
-          actualOutput: "-1",
-          status: "failed",
-          runtime: "0.01ms",
-        },
-        {
-          id: 3,
-          name: "用例 3",
-          input: "[1,2]",
-          expectedOutput: "1",
-          actualOutput: "-1",
-          status: "failed",
-          runtime: "0.01ms",
-        },
-        {
-          id: 4,
-          name: "用例 4",
-          input: "[1]",
-          expectedOutput: "0",
-          actualOutput: "-1",
-          status: "failed",
-          runtime: "0.01ms",
-        },
-        {
-          id: 5,
-          name: "用例 5",
-          input: "[1,2,3,4,5,null,null,6,7]",
-          expectedOutput: "4",
-          actualOutput: "-1",
-          status: "failed",
-          runtime: "0.01ms",
-        },
-      ]
+  const loadProblem = async (id: string) => {
+    if (!id) {
+      setProblem(null)
+      setProblemError("请输入题目 ID 或配置 NEXT_PUBLIC_DEFAULT_PROBLEM_ID")
+      return
+    }
 
-      setTestResults(mockResults)
-      setHasRunTests(true)
-      setIsRunning(false)
-
-      // 触发测试面板更新
-      testCasePanelRef.current?.runTests()
-    }, 2000)
+    setLoadingProblem(true)
+    setProblemError(null)
+    try {
+      const data = await fetchProblem(id)
+      setProblem(data)
+      setCode(data.solution_code || "")
+      setLanguage((data.solution_language || "python").toLowerCase())
+      setResults([])
+      setStdout(undefined)
+      setStderr(undefined)
+      setExecutionTime(undefined)
+      setRunStatus(undefined)
+      setProblemId(id)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setProblemError(message)
+      setProblem(null)
+    } finally {
+      setLoadingProblem(false)
+    }
   }
 
-  const handleSubmitCode = async () => {
-    // 先运行测试
-    await handleRunCode()
+  useEffect(() => {
+    void loadProblem(DEFAULT_PROBLEM_ID)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-    // 模拟提交过程
-    setTimeout(() => {
-      // 这里可以添加提交成功/失败的逻辑
-      console.log("代码已提交")
-    }, 1000)
+  const difficultyBadge = useMemo(() => {
+    const diff = problem?.difficulty?.toLowerCase()
+    if (diff === "easy") return { label: "简单", variant: "secondary" as const }
+    if (diff === "hard") return { label: "困难", variant: "destructive" as const }
+    if (diff === "medium") return { label: "中等", variant: "default" as const }
+    return { label: "未标注", variant: "outline" as const }
+  }, [problem?.difficulty])
+
+  const handleExecute = async (mode: "run" | "submit") => {
+    if (!problem) return
+    setRunError(null)
+    const setRunning = mode === "run" ? setIsRunning : setIsSubmitting
+    setRunning(true)
+
+    try {
+      const response = await executeCode({
+        language,
+        code,
+        problem_id: problem.id,
+        match: "tolerant",
+        float_tolerance: 1e-6,
+      })
+      updateExecutionState(response)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setRunError(message)
+    } finally {
+      setRunning(false)
+    }
   }
+
+  const updateExecutionState = (payload: ExecuteResponseData) => {
+    setStdout(payload.stdout)
+    setStderr(payload.stderr)
+    setExecutionTime(payload.executionTime)
+    setRunStatus(payload.status)
+
+    if (payload.cases && payload.cases.length > 0) {
+      const merged = payload.cases.map((resultCase, index) => {
+        const testCase = testCases[index]
+        return {
+          id: `${index}`,
+          input: testCase?.input ?? "",
+          expected: resultCase.expected,
+          actual: resultCase.actual,
+          passed: resultCase.passed,
+        }
+      })
+      setResults(merged)
+    } else {
+      setResults([])
+    }
+  }
+
+  const handleLoadProblem = () => {
+    void loadProblem(inputProblemId)
+  }
+
+  const displayDescription = useMemo(() => {
+    if (!problem?.description) return ""
+    return problem.description
+  }, [problem?.description])
 
   return (
     <div className="flex h-full">
-      {/* 左侧题目描述 */}
-      <div className="w-1/2 border-r border-border flex flex-col">
-        <div className="p-4 border-b border-border">
-          <div className="flex items-center gap-2 mb-2">
-            <Trophy className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">题目</span>
-            <Trophy className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">排行榜</span>
+      <div className="w-full lg:w-1/2 border-r border-border flex flex-col">
+        <div className="p-4 border-b border-border space-y-3">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Trophy className="h-4 w-4" />
+            <span>题目详情</span>
           </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Input
+              placeholder="输入题目 UUID"
+              value={inputProblemId}
+              onChange={(e) => setInputProblemId(e.target.value)}
+              className="sm:w-72"
+            />
+            <Button size="sm" onClick={handleLoadProblem} disabled={loadingProblem} className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+              {loadingProblem ? "加载中..." : "加载题目"}
+            </Button>
+          </div>
+          {problemError && <p className="text-sm text-destructive">{problemError}</p>}
         </div>
 
         <div className="flex-1 overflow-auto p-6">
-          <div className="space-y-4">
-            <div>
-              <h1 className="text-2xl font-bold mb-4">题目: {sampleProblem.title}</h1>
-              <div className="flex items-center gap-4 mb-6">
-                <Badge variant={sampleProblem.difficulty === "简单" ? "secondary" : "destructive"}>
-                  {sampleProblem.difficulty}
-                </Badge>
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  <Clock className="h-4 w-4" />
-                  <span>用时 {sampleProblem.timeLimit}</span>
+          {loadingProblem && !problem ? (
+            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+              正在加载题目信息...
+            </div>
+          ) : problem ? (
+            <div className="space-y-5">
+              <div>
+                <h1 className="text-2xl font-bold mb-4">{problem.title}</h1>
+                <div className="flex flex-wrap items-center gap-4 mb-6 text-sm text-muted-foreground">
+                  <Badge variant={difficultyBadge.variant}>{difficultyBadge.label}</Badge>
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-4 w-4" />
+                    <span>ID: {problemId}</span>
+                  </div>
                 </div>
-                <span className="text-sm text-muted-foreground">最多 {sampleProblem.maxSubmissions} 次提交</span>
+              </div>
+
+              <div>
+                <h2 className="text-lg font-semibold mb-3">题目描述</h2>
+                <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">{displayDescription}</p>
+              </div>
+
+              <div>
+                <h2 className="text-lg font-semibold mb-3">预设测试用例</h2>
+                <div className="space-y-3 text-sm">
+                  {testCases.map((testCase, index) => (
+                    <Card key={testCase.id} className="border-border/50">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">用例 {index + 1}</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2 text-xs text-muted-foreground">
+                        <div>
+                          <span className="font-medium text-foreground">输入</span>
+                          <pre className="mt-1 bg-muted/60 p-3 rounded font-mono whitespace-pre-wrap">
+                            {testCase.input || "(空)"}
+                          </pre>
+                        </div>
+                        <div>
+                          <span className="font-medium text-foreground">预期输出</span>
+                          <pre className="mt-1 bg-muted/60 p-3 rounded font-mono whitespace-pre-wrap">
+                            {testCase.expectedOutput || "(空)"}
+                          </pre>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {testCases.length === 0 && <p className="italic text-muted-foreground">暂无测试用例。</p>}
+                </div>
               </div>
             </div>
-
-            <div>
-              <h2 className="text-lg font-semibold mb-3">题目描述</h2>
-              <p className="text-muted-foreground leading-relaxed mb-4">{sampleProblem.description}</p>
-
-              <div className="bg-muted/50 border-l-4 border-primary p-4 rounded-r-lg mb-4">
-                <p className="text-sm">
-                  <strong>注意：</strong>
-                  {sampleProblem.note}
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-lg font-semibold mb-3">约束条件</h2>
-              <ul className="space-y-2">
-                {sampleProblem.constraints.map((constraint, index) => (
-                  <li key={index} className="flex items-start gap-2">
-                    <span className="text-primary mt-1">•</span>
-                    <span className="text-muted-foreground">{constraint}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div>
-              <h2 className="text-lg font-semibold mb-3">示例</h2>
-              {sampleProblem.examples.map((example, index) => (
-                <Card key={index} className="mb-4">
-                  <CardContent className="p-4">
-                    <div className="space-y-2">
-                      <div>
-                        <span className="font-medium">输入：</span>
-                        <code className="ml-2 px-2 py-1 bg-muted rounded text-sm font-mono">{example.input}</code>
-                      </div>
-                      <div>
-                        <span className="font-medium">输出：</span>
-                        <code className="ml-2 px-2 py-1 bg-muted rounded text-sm font-mono">{example.output}</code>
-                      </div>
-                      <div>
-                        <span className="font-medium">解释：</span>
-                        <span className="ml-2 text-muted-foreground">{example.explanation}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 右侧代码编辑器和测试面板 */}
-      <div className="flex-1 flex flex-col">
-        {/* 代码编辑器 */}
-        <div className={`transition-all duration-300 ${isTestPanelCollapsed ? "flex-1" : "flex-[2]"}`}>
-          <CodeEditor onRun={handleRunCode} onSubmit={handleSubmitCode} isRunning={isRunning} />
-        </div>
-
-        {/* 测试用例面板 */}
-        <div
-          className={`border-t border-border transition-all duration-300 ${isTestPanelCollapsed ? "h-12" : "flex-1"}`}
-        >
-          <div className="flex items-center justify-between p-3 bg-muted/30">
-            <div className="flex items-center gap-4">
-              <Tabs defaultValue="testcases" className="w-auto">
-                <TabsList className="h-8">
-                  <TabsTrigger value="testcases" className="text-xs">
-                    测试用例
-                  </TabsTrigger>
-                  <TabsTrigger value="results" className="text-xs">
-                    结果
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsTestPanelCollapsed(!isTestPanelCollapsed)}
-              className="h-6 w-6 p-0"
-            >
-              {isTestPanelCollapsed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-          </div>
-
-          {!isTestPanelCollapsed && (
-            <div className="flex-1 overflow-auto">
-              <TestCasePanel ref={testCasePanelRef} results={testResults} hasRunTests={hasRunTests} />
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              未加载题目。请在上方输入题目 ID。
             </div>
           )}
         </div>
+      </div>
+
+      <div className="flex-1 flex flex-col">
+        {problem ? (
+          <>
+            <div className="flex-1">
+              <CodeEditor
+                language={language}
+                code={code}
+                defaultCode={problem.solution_code}
+                onLanguageChange={setLanguage}
+                onCodeChange={setCode}
+                onRun={() => void handleExecute("run")}
+                onSubmit={() => void handleExecute("submit")}
+                isRunning={isRunning}
+                isSubmitting={isSubmitting}
+              />
+            </div>
+            <div className="flex-[1.2] border-t border-border bg-muted/30">
+              <TestCasePanel
+                testCases={testCases}
+                results={results}
+                executionTime={executionTime}
+                status={runStatus}
+                stdout={stdout}
+                stderr={stderr}
+                isRunning={isRunning || isSubmitting}
+              />
+              {runError && <p className="px-4 pb-4 text-sm text-destructive">{runError}</p>}
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+            选择题目后可开始编程练习。
+          </div>
+        )}
       </div>
     </div>
   )

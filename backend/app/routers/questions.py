@@ -14,6 +14,7 @@ from app.schemas import (
     KnowledgeItemOut,
 )
 from app.services.llm_provider import get_provider
+from app.serializers import serialize_knowledge_item
 
 
 router = APIRouter(prefix="/api/v1", tags=["questions"])
@@ -53,12 +54,4 @@ def generate_item(req: GenerateRequest, db: Session = Depends(get_db)):
     db.refresh(item)
 
     # Assemble response using simple dict passthrough for nested structures
-    return KnowledgeItemOut(
-        id=item.id,
-        question_id=item.question_id,
-        flashcard=item.flashcard,
-        mindmap=item.mindmap,
-        code=item.code,
-        project_usage=item.project_usage,
-    )
-
+    return serialize_knowledge_item(item)

@@ -12,27 +12,39 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { X, Plus } from "lucide-react"
 
-interface QuestionFormProps {
-  onSubmit: (question: any) => void
-  onCancel: () => void
-  initialData?: any
+export interface QuestionFormValues {
+  title: string
+  description: string
+  difficulty: string
+  category: string
+  tags: string[]
+  solution: string
+  hints: string
 }
 
-export function QuestionForm({ onSubmit, onCancel, initialData }: QuestionFormProps) {
-  const [formData, setFormData] = useState({
-    title: initialData?.title || "",
-    description: initialData?.description || "",
-    difficulty: initialData?.difficulty || "",
-    category: initialData?.category || "",
-    tags: initialData?.tags || [],
-    solution: initialData?.solution || "",
-    hints: initialData?.hints || "",
+interface QuestionFormProps {
+  onSubmit: (question: QuestionFormValues) => Promise<void> | void
+  onCancel: () => void
+  initialData?: Partial<QuestionFormValues>
+  isSubmitting?: boolean
+  errorMessage?: string | null
+}
+
+export function QuestionForm({ onSubmit, onCancel, initialData, isSubmitting = false, errorMessage }: QuestionFormProps) {
+  const [formData, setFormData] = useState<QuestionFormValues>({
+    title: initialData?.title ?? "",
+    description: initialData?.description ?? "",
+    difficulty: initialData?.difficulty ?? "",
+    category: initialData?.category ?? "",
+    tags: initialData?.tags ?? [],
+    solution: initialData?.solution ?? "",
+    hints: initialData?.hints ?? "",
   })
   const [newTag, setNewTag] = useState("")
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit({
+    await onSubmit({
       ...formData,
       id: initialData?.id || Date.now().toString(),
       createdAt: initialData?.createdAt || new Date().toISOString().split("T")[0],
@@ -83,6 +95,11 @@ export function QuestionForm({ onSubmit, onCancel, initialData }: QuestionFormPr
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
+          {errorMessage && (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {errorMessage}
+            </div>
+          )}
           {/* Title */}
           <div className="space-y-2">
             <Label htmlFor="title">Question Title</Label>
@@ -157,7 +174,7 @@ export function QuestionForm({ onSubmit, onCancel, initialData }: QuestionFormPr
                 placeholder="Add a tag..."
                 onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
               />
-              <Button type="button" onClick={addTag} size="sm">
+              <Button type="button" onClick={addTag} size="sm" disabled={isSubmitting}>
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
@@ -199,10 +216,12 @@ export function QuestionForm({ onSubmit, onCancel, initialData }: QuestionFormPr
 
           {/* Actions */}
           <div className="flex justify-end gap-3">
-            <Button type="button" variant="outline" onClick={onCancel}>
+            <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit">{initialData ? "Update Question" : "Add Question"}</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Generating..." : initialData ? "Update Question" : "Add Question"}
+            </Button>
           </div>
         </form>
       </CardContent>

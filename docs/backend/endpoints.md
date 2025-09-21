@@ -20,8 +20,25 @@
   - 返回：`knowledge_item` 对象（见数据模型）
 
 - GET `/api/v1/items/{id}`
-  - 用途：获取生成内容
-  - 返回：`knowledge_item`
+  - 用途：获取生成内容（含题目元信息）
+  - 返回示例：
+    ```json
+    {
+      "id": "uuid",
+      "question": {
+        "id": "uuid",
+        "text": "Describe virtual functions...",
+        "tags": ["cpp", "oop"],
+        "difficulty": "medium",
+        "created_at": "2024-09-21T00:10:11.000Z"
+      },
+      "flashcard": { "answer": "...", "pitfalls": ["..."] },
+      "mindmap": { "root": "..." },
+      "code": { "lang": "python", "snippet": "...", "explanation": "..." },
+      "project_usage": "...",
+      "created_at": "2024-09-21T00:10:12.000Z"
+    }
+    ```
 
 - PUT `/api/v1/items/{id}`
   - 用途：更新/保存用户修改（flashcard/mindmap/code/project_usage）
@@ -32,6 +49,9 @@
   - 用途：分页与查询（关键词、标签、难度）
   - Query：`q`, `tag`, `difficulty`, `page`, `page_size`
   - 返回：列表与分页信息
+- DELETE `/api/v1/items/{id}`
+  - 用途：删除知识项（连带删除对应 question 记录）
+  - 返回：204
 
 - GET `/api/v1/items/{id}/export`
   - 用途：导出单条为 JSON/Markdown

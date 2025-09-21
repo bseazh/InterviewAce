@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# InterviewAce Frontend (Next.js)
 
-## Getting Started
+This Next.js app consumes the FastAPI backend in `../backend` for AI-generated interview preparation content and coding practice. It was scaffolded with V0.dev and extended to integrate the backend endpoints.
 
-First, run the development server:
+## Prerequisites
+- Node.js 18+
+- Backend API running locally (see `../backend/README.md`)
+
+## Environment Variables
+Copy the example file and adjust values to match your environment:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.local.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- `NEXT_PUBLIC_API_BASE_URL` – base URL of the FastAPI service (default `http://localhost:8000`).
+- `NEXT_PUBLIC_DEFAULT_PROBLEM_ID` – UUID of a seeded coding problem used by the practice module.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Ensure the backend enables CORS for your frontend origin (defaults to `http://localhost:3000`).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Install & Run
 
-## Learn More
+```bash
+npm install
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Then open [http://localhost:3000](http://localhost:3000).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The UI currently exposes:
+- **Knowledge Items** – fetches `/api/v1/items`, allows creating questions via `/questions` + `/generate`, deleting items, and viewing detailed flashcards/code insights.
+- **Algorithm Practice** – loads a coding problem via `/problems/{id}`, runs code in the sandbox (`/execute`), and displays per-test-case judging results.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Useful Notes
+- When adding a question, the frontend composes a prompt and triggers backend generation; responses update immediately without page reload.
+- Coding practice supports Python and C++ (matching backend sandbox capabilities). Adjust the sandbox if new languages are introduced.
+- If the browser reports CORS issues, verify the backend `CORS_ORIGINS` setting in `.env`.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+For additional architecture and backend details, refer to `../docs/`.

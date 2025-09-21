@@ -1,188 +1,181 @@
 "use client"
 
-import { useState, forwardRef, useImperativeHandle } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { X, Eye, RefreshCw } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { CheckCircle2, XCircle, Terminal } from "lucide-react"
 
 interface TestCase {
-  id: number
-  name: string
+  id: string
   input: string
   expectedOutput?: string
-  actualOutput?: string
-  status?: "pending" | "passed" | "failed"
-  runtime?: string
+}
+
+interface ResultCase {
+  id: string
+  input: string
+  expected: string
+  actual: string
+  passed: boolean
 }
 
 interface TestCasePanelProps {
-  results?: TestCase[]
-  hasRunTests?: boolean
+  testCases: TestCase[]
+  results?: ResultCase[]
+  executionTime?: string
+  status?: string
+  stdout?: string
+  stderr?: string
+  isRunning?: boolean
 }
 
-const initialTestCases: TestCase[] = [
-  { id: 1, name: "用例 1", input: "[1,2,3,4,5,6]", expectedOutput: "4" },
-  { id: 2, name: "用例 2", input: "[1,2,3,4,5]", expectedOutput: "3" },
-  { id: 3, name: "用例 3", input: "[1,2]", expectedOutput: "1" },
-  { id: 4, name: "用例 4", input: "[1]", expectedOutput: "0" },
-  { id: 5, name: "用例 5", input: "[1,2,3,4,5,null,null,6,7]", expectedOutput: "4" },
-]
+export function TestCasePanel({
+  testCases,
+  results = [],
+  executionTime,
+  status,
+  stdout,
+  stderr,
+  isRunning = false,
+}: TestCasePanelProps) {
+  const hasResults = results.length > 0
 
-export const TestCasePanel = forwardRef<{ runTests: () => void }, TestCasePanelProps>(
-  ({ results = [], hasRunTests = false }, ref) => {
-    const [activeTab, setActiveTab] = useState("testcases")
-    const [testCases, setTestCases] = useState<TestCase[]>(initialTestCases)
-    const [selectedCase, setSelectedCase] = useState<number>(1)
+  return (
+    <Tabs defaultValue="testcases" className="flex flex-col h-full">
+      <TabsList className="grid w-full grid-cols-2 mx-4 mt-2">
+        <TabsTrigger value="testcases">测试用例</TabsTrigger>
+        <TabsTrigger value="results" disabled={!hasResults && !isRunning}>
+          运行结果
+          {hasResults && (
+            <Badge variant={results.every((r) => r.passed) ? "secondary" : "destructive"} className="ml-2">
+              {results.every((r) => r.passed) ? "通过" : "未通过"}
+            </Badge>
+          )}
+        </TabsTrigger>
+      </TabsList>
 
-    useImperativeHandle(ref, () => ({
-      runTests: () => {
-        setActiveTab("results")
-      },
-    }))
-
-    const removeTestCase = (id: number) => {
-      setTestCases(testCases.filter((tc) => tc.id !== id))
-      if (selectedCase === id && testCases.length > 1) {
-        const remainingCases = testCases.filter((tc) => tc.id !== id)
-        setSelectedCase(remainingCases[0]?.id || 1)
-      }
-    }
-
-    const updateTestCaseInput = (id: number, input: string) => {
-      setTestCases(testCases.map((tc) => (tc.id === id ? { ...tc, input } : tc)))
-    }
-
-    const selectedTestCase = testCases.find((tc) => tc.id === selectedCase)
-
-    return (
-      <div className="h-full flex flex-col">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-2 mx-4 mt-2">
-            <TabsTrigger value="testcases">测试用例</TabsTrigger>
-            <TabsTrigger value="results" className="relative">
-              结果
-              {hasRunTests && (
-                <Badge variant="destructive" className="ml-2 h-4 px-1 text-xs">
-                  错误
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="testcases" className="flex-1 flex flex-col mt-0">
-            {/* 测试用例标签 */}
-            <div className="flex items-center gap-2 p-4 border-b border-border overflow-x-auto">
-              {testCases.map((testCase) => (
-                <div key={testCase.id} className="flex items-center gap-1">
-                  <Button
-                    variant={selectedCase === testCase.id ? "secondary" : "ghost"}
-                    size="sm"
-                    onClick={() => setSelectedCase(testCase.id)}
-                    className="h-7 px-2 text-xs whitespace-nowrap"
-                  >
-                    {testCase.name}
-                  </Button>
-                  {testCases.length > 1 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeTestCase(testCase.id)}
-                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
+      <TabsContent value="testcases" className="flex-1 p-4 space-y-4">
+        <div className="h-full overflow-auto pr-2">
+          <div className="space-y-4">
+            {testCases.map((testCase, index) => (
+              <Card key={testCase.id} className="border-border/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">用例 {index + 1}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <div>
+                    <span className="text-xs uppercase text-muted-foreground">输入</span>
+                    <pre className="mt-1 bg-muted/60 p-3 rounded font-mono text-xs whitespace-pre-wrap">
+                      {testCase.input || "(空)"}
+                    </pre>
+                  </div>
+                  {testCase.expectedOutput !== undefined && (
+                    <div>
+                      <span className="text-xs uppercase text-muted-foreground">预期输出</span>
+                      <pre className="mt-1 bg-muted/60 p-3 rounded font-mono text-xs whitespace-pre-wrap">
+                        {testCase.expectedOutput || "(空)"}
+                      </pre>
+                    </div>
                   )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="results" className="flex-1 p-4 space-y-4">
+        {isRunning ? (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+            正在执行代码...
+          </div>
+        ) : !hasResults ? (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+            运行后将显示结果
+          </div>
+        ) : (
+          <>
+            <Card className="border-border/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">总体结果</CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs space-y-2 text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  {results.every((r) => r.passed) ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-red-500" />
+                  )}
+                  <span>{status ?? (results.every((r) => r.passed) ? "success" : "error")}</span>
                 </div>
-              ))}
-              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs ml-auto">
-                <RefreshCw className="h-3 w-3 mr-1" />
-                刷新
-              </Button>
+                {executionTime && <div>耗时：{executionTime}</div>}
+              </CardContent>
+            </Card>
+
+            <div className="flex-1 overflow-auto pr-2">
+              <div className="space-y-4">
+                {results.map((result, idx) => (
+                  <Card key={result.id} className="border-border/50">
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                      <CardTitle className="text-sm font-medium">用例 {idx + 1}</CardTitle>
+                      <Badge variant={result.passed ? "secondary" : "destructive"}>
+                        {result.passed ? "通过" : "未通过"}
+                      </Badge>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-xs text-muted-foreground">
+                      <div>
+                        <span className="font-medium text-foreground">输入</span>
+                        <pre className="mt-1 bg-muted/60 p-3 rounded font-mono whitespace-pre-wrap">
+                          {result.input || "(空)"}
+                        </pre>
+                      </div>
+                      <div>
+                        <span className="font-medium text-foreground">预期</span>
+                        <pre className="mt-1 bg-muted/60 p-3 rounded font-mono whitespace-pre-wrap">
+                          {result.expected}
+                        </pre>
+                      </div>
+                      <div>
+                        <span className="font-medium text-foreground">实际</span>
+                        <pre className="mt-1 bg-muted/60 p-3 rounded font-mono whitespace-pre-wrap">
+                          {result.actual || "(空)"}
+                        </pre>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
 
-            {/* 测试用例输入 */}
-            {selectedTestCase && (
-              <div className="flex-1 p-4 space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">输入 #1</label>
-                  <Input
-                    value={selectedTestCase.input}
-                    onChange={(e) => updateTestCaseInput(selectedTestCase.id, e.target.value)}
-                    className="font-mono text-sm"
-                    placeholder="输入测试数据..."
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
-                    <Eye className="h-3 w-3 mr-1" />
-                    查看预期输出
-                  </Button>
-                </div>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="results" className="flex-1 flex flex-col mt-0">
-            {!hasRunTests ? (
-              <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                <div className="text-center">
-                  <p className="text-sm">运行代码以查看结果</p>
-                </div>
-              </div>
-            ) : (
-              <>
-                {/* 结果标签 */}
-                <div className="flex items-center gap-2 p-4 border-b border-border overflow-x-auto">
-                  {results.map((result) => (
-                    <Badge
-                      key={result.id}
-                      variant={result.status === "passed" ? "secondary" : "destructive"}
-                      className="text-xs"
-                    >
-                      {result.name}
-                    </Badge>
-                  ))}
-                  <div className="ml-auto text-xs text-muted-foreground">运行时间: 0.01ms</div>
-                </div>
-
-                {/* 结果详情 */}
-                <div className="flex-1 p-4 space-y-4">
-                  <div className="text-sm">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge variant="destructive" className="text-xs">
-                        错误答案
-                      </Badge>
-                      <span className="text-muted-foreground">差异</span>
+            {(stdout || stderr) && (
+              <Card className="border-border/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <Terminal className="h-4 w-4" />
+                    控制台输出
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-xs text-muted-foreground">
+                  {stdout && (
+                    <div>
+                      <span className="font-medium text-foreground">stdout</span>
+                      <pre className="mt-1 bg-muted/60 p-3 rounded font-mono whitespace-pre-wrap">{stdout}</pre>
                     </div>
-
-                    <div className="space-y-3 text-xs">
-                      <div>
-                        <span className="font-medium">输入</span>
-                        <div className="mt-1 p-2 bg-muted rounded font-mono">{results[0]?.input}</div>
-                      </div>
-
-                      <div>
-                        <span className="font-medium">输出</span>
-                        <div className="mt-1 p-2 bg-muted rounded font-mono">{results[0]?.actualOutput}</div>
-                      </div>
-
-                      <div>
-                        <span className="font-medium">预期</span>
-                        <div className="mt-1 p-2 bg-muted rounded font-mono">{results[0]?.expectedOutput}</div>
-                      </div>
+                  )}
+                  {stderr && (
+                    <div>
+                      <span className="font-medium text-foreground">stderr</span>
+                      <pre className="mt-1 bg-muted/60 p-3 rounded font-mono whitespace-pre-wrap text-destructive">
+                        {stderr}
+                      </pre>
                     </div>
-                  </div>
-                </div>
-              </>
+                  )}
+                </CardContent>
+              </Card>
             )}
-          </TabsContent>
-        </Tabs>
-      </div>
-    )
-  },
-)
-
-TestCasePanel.displayName = "TestCasePanel"
+          </>
+        )}
+      </TabsContent>
+    </Tabs>
+  )
+}

@@ -1,59 +1,83 @@
 "use client"
 
-import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Copy, Play, Upload, RotateCcw, Maximize2, Settings } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Copy, Play, Upload, RotateCcw, Maximize2, Settings } from "lucide-react"
 
 const languages = [
+  { value: "python", label: "Python", icon: "Py" },
   { value: "cpp", label: "C++", icon: "C++" },
-  { value: "java", label: "Java", icon: "Java" },
-  { value: "python", label: "Python", icon: "Python" },
-  { value: "javascript", label: "JavaScript", icon: "JS" },
 ]
 
-const cppTemplate = `// Definition for a binary tree node
-// template<class T>
-// class TreeNode {
-// public:
-//     T data;
-//     TreeNode<T>* left;
-//     TreeNode<T>* right;
-//
-//     TreeNode(const T data) : data(data), left(nullptr), right(nullptr) {}
-// };
+const defaultTemplates: Record<string, string> = {
+  python: `def solution(*args):
+    # TODO: implement
+    return None
 
-// DiameterOfBinaryTree returns the diameter of tree
-int DiameterOfBinaryTree(TreeNode<int>* root)
-{
-    
-    // Replace this placeholder return statement with your code
-    return -1;
-}`
+if __name__ == "__main__":
+    # read from stdin if needed
+    pass
+`,
+  cpp: `#include <bits/stdc++.h>
+using namespace std;
+
+int main() {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    // TODO: implement
+    cout << "Hello" << "\n";
+    return 0;
+}
+`,
+}
 
 interface CodeEditorProps {
+  language: string
+  code: string
+  defaultCode?: string
+  onLanguageChange?: (language: string) => void
+  onCodeChange?: (code: string) => void
   onRun?: () => void
   onSubmit?: () => void
   isRunning?: boolean
+  isSubmitting?: boolean
 }
 
-export function CodeEditor({ onRun, onSubmit, isRunning = false }: CodeEditorProps) {
-  const [selectedLanguage, setSelectedLanguage] = useState("cpp")
-  const [code, setCode] = useState(cppTemplate)
-
+export function CodeEditor({
+  language,
+  code,
+  defaultCode,
+  onLanguageChange,
+  onCodeChange,
+  onRun,
+  onSubmit,
+  isRunning = false,
+  isSubmitting = false,
+}: CodeEditorProps) {
   const handleReset = () => {
-    setCode(cppTemplate)
+    if (onCodeChange) {
+      const fallback = defaultCode ?? defaultTemplates[language] ?? ""
+      onCodeChange(fallback)
+    }
   }
 
   const handleCopy = () => {
     navigator.clipboard.writeText(code)
   }
 
+  const handleLanguageSelect = (value: string) => {
+    onLanguageChange?.(value)
+    if (onCodeChange) {
+      const template = defaultTemplates[value] ?? defaultCode ?? ""
+      onCodeChange(template)
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
-      {/* 编辑器头部 */}
       <div className="flex items-center justify-between p-3 border-b border-border bg-muted/30">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
@@ -61,13 +85,13 @@ export function CodeEditor({ onRun, onSubmit, isRunning = false }: CodeEditorPro
             文件
           </Button>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">main.cpp</span>
+            <span className="text-sm font-medium">main.{language === "python" ? "py" : "cpp"}</span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
-            <SelectTrigger className="w-24 h-8">
+          <Select value={language} onValueChange={handleLanguageSelect}>
+            <SelectTrigger className="w-28 h-8">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -87,7 +111,7 @@ export function CodeEditor({ onRun, onSubmit, isRunning = false }: CodeEditorPro
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
             <Settings className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+          <Button variant="ghost" size="sm" onClick={handleReset} disabled={isRunning} className="h-8 w-8 p-0">
             <RotateCcw className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -96,10 +120,8 @@ export function CodeEditor({ onRun, onSubmit, isRunning = false }: CodeEditorPro
         </div>
       </div>
 
-      {/* 代码编辑区域 */}
       <div className="flex-1 relative">
         <div className="absolute inset-0 flex">
-          {/* 行号 */}
           <div className="w-12 bg-muted/20 border-r border-border flex flex-col text-xs text-muted-foreground font-mono">
             {code.split("\n").map((_, index) => (
               <div key={index} className="h-6 flex items-center justify-end px-2">
@@ -108,11 +130,10 @@ export function CodeEditor({ onRun, onSubmit, isRunning = false }: CodeEditorPro
             ))}
           </div>
 
-          {/* 代码区域 */}
           <div className="flex-1 relative">
             <Textarea
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={(e) => onCodeChange?.(e.target.value)}
               className="absolute inset-0 border-0 resize-none font-mono text-sm leading-6 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
               style={{
                 minHeight: "100%",
@@ -124,22 +145,17 @@ export function CodeEditor({ onRun, onSubmit, isRunning = false }: CodeEditorPro
         </div>
       </div>
 
-      {/* 编辑器底部状态栏 */}
       <div className="flex items-center justify-between p-2 border-t border-border bg-muted/20 text-xs text-muted-foreground">
         <div className="flex items-center gap-4">
-          <span>已保存</span>
-          <span>第 17 行，第 1 列</span>
+          <span>自动保存</span>
+          <span>行 {code.split("\n").length}</span>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={handleCopy} className="h-6 px-2 text-xs">
             <Copy className="h-3 w-3 mr-1" />
             复制
           </Button>
-          <Button variant="ghost" size="sm" onClick={handleReset} className="h-6 px-2 text-xs">
-            <RotateCcw className="h-3 w-3 mr-1" />
-            重置
-          </Button>
-          <Button size="sm" onClick={onRun} disabled={isRunning} className="h-6 px-3 text-xs">
+          <Button size="sm" onClick={onRun} disabled={isRunning || isSubmitting} className="h-6 px-3 text-xs">
             <Play className="h-3 w-3 mr-1" />
             {isRunning ? "运行中..." : "运行"}
           </Button>
@@ -147,11 +163,11 @@ export function CodeEditor({ onRun, onSubmit, isRunning = false }: CodeEditorPro
             variant="default"
             size="sm"
             onClick={onSubmit}
-            disabled={isRunning}
+            disabled={isSubmitting || isRunning}
             className="h-6 px-3 text-xs bg-primary hover:bg-primary/90"
           >
             <Upload className="h-3 w-3 mr-1" />
-            提交
+            {isSubmitting ? "提交中..." : "提交"}
           </Button>
         </div>
       </div>

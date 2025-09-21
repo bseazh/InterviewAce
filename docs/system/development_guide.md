@@ -6,6 +6,10 @@
 - **数据库**：PostgreSQL 15（Compose 自动拉起）。
 - **LLM Key**：可选；本地默认使用 Mock Provider。
 
+必备环境变量：
+- Backend: `.env` 中配置 `DATABASE_URL`、`CORS_ORIGINS`（默认为 `http://localhost:3000`）。
+- Frontend: `.env.local` 中配置 `NEXT_PUBLIC_API_BASE_URL`（默认为 `http://localhost:8000`）、`NEXT_PUBLIC_DEFAULT_PROBLEM_ID`（取自 `problems` 表种子数据）。
+
 ### 1.1 本地快速启动
 ```bash
 cp .env.sample .env         # 配置数据库/连接信息
@@ -82,4 +86,3 @@ npm run dev
 - 梳理前端与后端的接口契约覆盖图。
 - 制定测试覆盖率目标与质量门槛。
 - 补充部署脚本（Terraform/Ansible/K8s manifests）。
-

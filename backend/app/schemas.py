@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import List, Optional
+from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel, Field
 
@@ -41,13 +42,23 @@ class CodeSnippet(BaseModel):
     explanation: str
 
 
+class QuestionMeta(BaseModel):
+    id: UUID
+    text: str
+    tags: Optional[List[str]] = None
+    difficulty: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
 class KnowledgeItemOut(BaseModel):
     id: UUID
-    question_id: UUID
+    question: QuestionMeta
     flashcard: Flashcard
     mindmap: dict  # 前端通常以通用结构消费
     code: CodeSnippet
     project_usage: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 class GenerateRequest(BaseModel):
