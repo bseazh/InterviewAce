@@ -34,6 +34,8 @@ services:
       - ./backend/app:/app/app
       - ./backend/alembic.ini:/app/alembic.ini
       - ./backend/alembic:/app/alembic
+      # Enable Docker SDK inside backend (dev only)
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       db:
         condition: service_healthy
@@ -41,4 +43,3 @@ services:
 
 volumes:
   pgdata:
-

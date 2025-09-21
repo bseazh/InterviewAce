@@ -66,3 +66,36 @@ class PaginatedKnowledgeItems(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class ProblemOut(BaseModel):
+    id: UUID
+    title: str
+    description: Optional[str] = None
+    difficulty: Optional[str] = None
+    solution_language: str
+    solution_code: str
+    test_cases: Optional[list[dict]] = None
+
+
+class ExecuteRequest(BaseModel):
+    language: str
+    code: str
+    stdin: Optional[str] = ""
+    problem_id: Optional[UUID] = None
+
+
+class CaseResult(BaseModel):
+    expected: str
+    actual: str
+    passed: bool
+
+
+class ExecuteResponse(BaseModel):
+    stdout: str = ""
+    stderr: str = ""
+    executionTime: str
+    memory: str = ""
+    status: str  # success|error|timeout
+    passed: Optional[bool] = None
+    cases: Optional[List[CaseResult]] = None
