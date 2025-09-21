@@ -8,6 +8,7 @@ from app.db import get_db
 from app import models
 from app.schemas import ExecuteRequest, ExecuteResponse, CaseResult
 from app.services.sandbox import execute_code
+from app.services.judge import compare_outputs
 
 
 router = APIRouter(prefix="/api/v1", tags=["execute"])
@@ -35,7 +36,8 @@ def execute(req: ExecuteRequest, db: Session = Depends(get_db)):
             last_stderr = res.get("stderr") or ""
             exec_time = res.get("executionTime") or "0ms"
             status = res.get("status") or "success"
-            passed = (actual.strip() == expected.strip()) and status == "success" and (not last_stderr)
+            passed, _ = compare_outputs(expected, actual, req.match or "exact", req.float_tolerance or 1e-6)
+            passed = passed and status == "success" and (not last_stderr)
             all_passed = all_passed and passed
             cases.append(CaseResult(expected=expected, actual=actual, passed=passed))
         return ExecuteResponse(
@@ -57,4 +59,3 @@ def execute(req: ExecuteRequest, db: Session = Depends(get_db)):
         memory=res.get("memory", ""),
         status=res.get("status", "success"),
     )
-

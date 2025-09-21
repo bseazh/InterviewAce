@@ -79,10 +79,12 @@ class ProblemOut(BaseModel):
 
 
 class ExecuteRequest(BaseModel):
-    language: str
+    language: str  # python | cpp
     code: str
     stdin: Optional[str] = ""
     problem_id: Optional[UUID] = None
+    match: Optional[str] = Field(default="exact", pattern=r"^(exact|tolerant)$")
+    float_tolerance: Optional[float] = 1e-6
 
 
 class CaseResult(BaseModel):

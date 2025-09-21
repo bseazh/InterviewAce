@@ -17,12 +17,21 @@ def execute_code(language: str, code: str, stdin: str = "") -> Dict[str, Any]:
     settings = get_settings()
     client = docker.from_env()
 
-    if language.lower() != "python":
+    lang = language.lower()
+    workdir = "/workspace"
+    if lang == "python":
+        image = "python:3.11-slim"
+        run_cmd = f"python {workdir}/main.py < {workdir}/input.txt"
+        files = {"main.py": code.encode("utf-8")}
+    elif lang in ("cpp", "c++"):  # C++
+        image = "gcc:13"
+        # Compile then run
+        run_cmd = f"g++ -O2 -std=c++17 {workdir}/main.cpp -o {workdir}/a.out && {workdir}/a.out < {workdir}/input.txt"
+        files = {"main.cpp": code.encode("utf-8")}
+    else:
         return {"stdout": "", "stderr": f"language {language} not supported", "executionTime": "0ms", "memory": "", "status": "error"}
 
-    image = "python:3.11-slim"
-    workdir = "/workspace"
-    cmd = ["/bin/sh", "-lc", f"python {workdir}/main.py < {workdir}/input.txt"]
+    cmd = ["/bin/sh", "-lc", run_cmd]
 
     container = None
     start_ts = time.monotonic()
@@ -56,7 +65,8 @@ def execute_code(language: str, code: str, stdin: str = "") -> Dict[str, Any]:
                 info.mtime = int(time.time())
                 tar.addfile(info, io.BytesIO(data))
 
-            add_bytes("main.py", code.encode("utf-8"))
+            for fname, fdata in files.items():
+                add_bytes(fname, fdata)
             add_bytes("input.txt", (stdin or "").encode("utf-8"))
         tar_stream.seek(0)
         container.put_archive(workdir, tar_stream.read())
@@ -94,4 +104,3 @@ def execute_code(language: str, code: str, stdin: str = "") -> Dict[str, Any]:
                 container.remove(force=True)
             except Exception:
                 pass
-

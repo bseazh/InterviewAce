@@ -58,7 +58,7 @@
   - 用途：在沙箱中执行用户代码，返回 stdout/stderr/性能数据与判题结果
   - Body：
     ```json
-    { "language": "python", "code": "print('hi')", "stdin": "" }
+    { "language": "python", "code": "print('hi')", "stdin": "", "match": "exact|tolerant", "float_tolerance": 1e-6, "problem_id": "uuid?" }
     ```
   - 返回：
     ```json
@@ -72,10 +72,11 @@
       "cases": [ {"expected": "...", "actual": "...", "passed": true} ]
     }
     ```
+  - 语言：当前支持 `python`、`cpp`（MVP）。
+  - 判题：`match=tolerant` 时忽略行尾空格、空行、按 token 对齐，数字采用 `float_tolerance` 容差比较。
 
 ## 错误码与约定
 - 400 参数错误 / 422 校验失败
 - 404 资源不存在
 - 429 速率限制（后续）
 - 500 服务器错误（包含沙箱执行异常）
-
