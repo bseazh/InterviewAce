@@ -53,3 +53,16 @@ class KnowledgeItemOut(BaseModel):
 class GenerateRequest(BaseModel):
     question_id: UUID
 
+
+class KnowledgeItemUpdate(BaseModel):
+    flashcard: Optional[Flashcard] = None
+    mindmap: Optional[dict] = None
+    code: Optional[CodeSnippet] = None
+    project_usage: Optional[str] = None
+
+
+class PaginatedKnowledgeItems(BaseModel):
+    items: List[KnowledgeItemOut]
+    total: int
+    page: int
+    page_size: int
