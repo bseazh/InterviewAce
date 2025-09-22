@@ -70,10 +70,6 @@ export function CodeEditor({
 
   const handleLanguageSelect = (value: string) => {
     onLanguageChange?.(value)
-    if (onCodeChange) {
-      const template = defaultTemplates[value] ?? defaultCode ?? ""
-      onCodeChange(template)
-    }
   }
 
   return (

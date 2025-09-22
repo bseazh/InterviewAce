@@ -1,11 +1,68 @@
 from __future__ import annotations
 
+import io
+import tarfile
 import time
-from typing import Dict, Any, List
+from dataclasses import dataclass
+from typing import Dict, Any
+
 import docker
-from docker.errors import DockerException, NotFound
+from docker.errors import DockerException
 
 from app.config import get_settings
+
+
+@dataclass(frozen=True)
+class LanguageConfig:
+    image: str
+    filename: str
+    run_command: str
+    compile_command: str | None = None
+
+    def build_command(self, workdir: str) -> str:
+        parts = []
+        if self.compile_command:
+            parts.append(self.compile_command.format(workdir=workdir))
+        parts.append(self.run_command.format(workdir=workdir))
+        return " && ".join(parts)
+
+
+LANGUAGE_MAP: Dict[str, LanguageConfig] = {
+    "python": LanguageConfig(
+        image="python:3.11-slim",
+        filename="main.py",
+        run_command="python {workdir}/main.py < {workdir}/input.txt",
+    ),
+    "py": LanguageConfig(
+        image="python:3.11-slim",
+        filename="main.py",
+        run_command="python {workdir}/main.py < {workdir}/input.txt",
+    ),
+    "cpp": LanguageConfig(
+        image="gcc:13",
+        filename="main.cpp",
+        compile_command="g++ -O2 -std=c++17 {workdir}/main.cpp -o {workdir}/program",
+        run_command="{workdir}/program < {workdir}/input.txt",
+    ),
+    "c++": LanguageConfig(
+        image="gcc:13",
+        filename="main.cpp",
+        compile_command="g++ -O2 -std=c++17 {workdir}/main.cpp -o {workdir}/program",
+        run_command="{workdir}/program < {workdir}/input.txt",
+    ),
+    "java": LanguageConfig(
+        image="eclipse-temurin:17-jdk",
+        filename="Main.java",
+        compile_command="cd {workdir} && javac Main.java",
+        run_command="cd {workdir} && java Main < input.txt",
+    ),
+    "go": LanguageConfig(
+        image="golang:1.23",
+        filename="main.go",
+        compile_command="cd {workdir} && go build -o program main.go",
+        run_command="{workdir}/program < {workdir}/input.txt",
+    ),
+}
 
 
 def _nanos(cpus: float) -> int:
@@ -17,68 +74,58 @@ def execute_code(language: str, code: str, stdin: str = "") -> Dict[str, Any]:
     settings = get_settings()
     client = docker.from_env()
 
-    lang = language.lower()
-    workdir = "/workspace"
-    if lang == "python":
-        image = "python:3.11-slim"
-        run_cmd = f"python {workdir}/main.py < {workdir}/input.txt"
-        files = {"main.py": code.encode("utf-8")}
-    elif lang in ("cpp", "c++"):  # C++
-        image = "gcc:13"
-        # Compile then run
-        run_cmd = f"g++ -O2 -std=c++17 {workdir}/main.cpp -o {workdir}/a.out && {workdir}/a.out < {workdir}/input.txt"
-        files = {"main.cpp": code.encode("utf-8")}
-    else:
-        return {"stdout": "", "stderr": f"language {language} not supported", "executionTime": "0ms", "memory": "", "status": "error"}
+    lang = (language or "").lower()
+    config = LANGUAGE_MAP.get(lang)
+    if config is None:
+        return {
+            "stdout": "",
+            "stderr": f"language {language} not supported",
+            "executionTime": "0ms",
+            "memory": "",
+            "status": "error",
+        }
 
-    cmd = ["/bin/sh", "-lc", run_cmd]
+    workdir = "/workspace"
+    command = ["/bin/sh", "-lc", config.build_command(workdir)]
 
     container = None
     start_ts = time.monotonic()
     try:
-        # Ensure image present
+        # Ensure image present locally (ignore failures in offline mode)
         try:
-            client.images.pull(image)
+            client.images.pull(config.image)
         except Exception:
-            # If pull not allowed (offline), assume present
             pass
 
         container = client.containers.create(
-            image=image,
-            command=cmd,
+            image=config.image,
+            command=command,
             working_dir=workdir,
             network_disabled=True,
             mem_limit=f"{settings.sandbox_memory_mb}m",
             nano_cpus=_nanos(settings.sandbox_cpus),
             detach=True,
-            name=None,
         )
-
-        # Prepare files via put_archive (tar stream)
-        import io, tarfile
 
         tar_stream = io.BytesIO()
         with tarfile.open(fileobj=tar_stream, mode="w") as tar:
-            def add_bytes(name: str, data: bytes):
+            def add_file(name: str, data: bytes) -> None:
                 info = tarfile.TarInfo(name=name)
                 info.size = len(data)
                 info.mtime = int(time.time())
                 tar.addfile(info, io.BytesIO(data))
 
-            for fname, fdata in files.items():
-                add_bytes(fname, fdata)
-            add_bytes("input.txt", (stdin or "").encode("utf-8"))
+            add_file(config.filename, code.encode("utf-8"))
+            add_file("input.txt", (stdin or "").encode("utf-8"))
+
         tar_stream.seek(0)
         container.put_archive(workdir, tar_stream.read())
 
         container.start()
-
-        # Wait with timeout
         try:
             container.wait(timeout=settings.sandbox_timeout_sec)
             status = "success"
         except Exception:
-            # Timeout or other error
             status = "timeout"
             try:
                 container.stop(timeout=1)
@@ -87,8 +134,7 @@ def execute_code(language: str, code: str, stdin: str = "") -> Dict[str, Any]:
 
         stdout = container.logs(stdout=True, stderr=False).decode("utf-8", errors="replace")
         stderr = container.logs(stdout=False, stderr=True).decode("utf-8", errors="replace")
-        end_ts = time.monotonic()
-        elapsed_ms = int((end_ts - start_ts) * 1000)
+        elapsed_ms = int((time.monotonic() - start_ts) * 1000)
         return {
             "stdout": stdout,
             "stderr": stderr,
@@ -96,8 +142,14 @@ def execute_code(language: str, code: str, stdin: str = "") -> Dict[str, Any]:
             "memory": "",
             "status": status,
         }
-    except DockerException as e:
-        return {"stdout": "", "stderr": str(e), "executionTime": "0ms", "memory": "", "status": "error"}
+    except DockerException as exc:
+        return {
+            "stdout": "",
+            "stderr": str(exc),
+            "executionTime": "0ms",
+            "memory": "",
+            "status": "error",
+        }
     finally:
         if container is not None:
             try:

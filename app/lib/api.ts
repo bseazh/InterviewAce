@@ -46,9 +46,24 @@ export interface BackendProblem {
   title: string
   description?: string | null
   difficulty?: string | null
-  solution_language: string
-  solution_code: string
-  test_cases?: Array<{ input: string; expectedOutput: string }>
+  tags?: string[] | null
+  test_cases: BackendProblemTestCase[]
+  solution_languages: string[]
+  default_language?: string | null
+  has_editorial: boolean
+}
+
+export interface BackendProblemTestCase {
+  input: string
+  expectedOutput: string
+}
+
+export interface ProblemListItem {
+  id: string
+  title: string
+  difficulty?: string | null
+  tags?: string[] | null
+  solution_languages: string[]
 }
 
 export interface ExecuteResultCase {
@@ -79,6 +94,22 @@ export interface ExecuteRequestPayload {
 type ErrorResponse = {
   detail?: string | Array<{ msg?: string; [key: string]: unknown }>
   [key: string]: unknown
+}
+
+export interface ProblemSolutionPayload {
+  language: string
+  code: string
+  explanation?: string
+}
+
+export interface ProblemImportPayload {
+  title: string
+  description?: string
+  difficulty?: string
+  tags?: string[]
+  test_cases: BackendProblemTestCase[]
+  solutions: ProblemSolutionPayload[]
+  editorial?: string
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -175,6 +206,31 @@ export async function fetchProblem(id: string): Promise<BackendProblem> {
 
 export async function executeCode(payload: ExecuteRequestPayload): Promise<ExecuteResponseData> {
   return request<ExecuteResponseData>("/api/v1/execute", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function fetchProblemSolution(id: string, language?: string): Promise<ProblemSolutionPayload> {
+  const query = language ? `?language=${encodeURIComponent(language)}` : ""
+  return request<ProblemSolutionPayload>(`/api/v1/problems/${id}/solution${query}`)
+}
+
+export async function fetchProblemEditorial(id: string): Promise<string> {
+  const data = await request<{ editorial: string }>(`/api/v1/problems/${id}/editorial`)
+  return data.editorial
+}
+
+export async function fetchProblemList(params: { difficulty?: string; tag?: string } = {}): Promise<ProblemListItem[]> {
+  const query = new URLSearchParams()
+  if (params.difficulty) query.set("difficulty", params.difficulty)
+  if (params.tag) query.set("tag", params.tag)
+  const queryString = query.toString()
+  return request<ProblemListItem[]>(`/api/v1/problems${queryString ? `?${queryString}` : ""}`)
+}
+
+export async function importProblem(payload: ProblemImportPayload): Promise<BackendProblem> {
+  return request<BackendProblem>("/api/v1/problems/import", {
     method: "POST",
     body: JSON.stringify(payload),
   })

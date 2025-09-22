@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel, Field
@@ -79,14 +79,55 @@ class PaginatedKnowledgeItems(BaseModel):
     page_size: int
 
 
+class ProblemTestCase(BaseModel):
+    input: str
+    expectedOutput: str
+
+
 class ProblemOut(BaseModel):
     id: UUID
     title: str
     description: Optional[str] = None
     difficulty: Optional[str] = None
-    solution_language: str
-    solution_code: str
-    test_cases: Optional[list[dict]] = None
+    tags: Optional[List[str]] = None
+    test_cases: List[ProblemTestCase]
+    solution_languages: List[str]
+    default_language: Optional[str] = None
+    has_editorial: bool = False
+
+
+class ProblemListItem(BaseModel):
+    id: UUID
+    title: str
+    difficulty: Optional[str] = None
+    tags: Optional[List[str]] = None
+    solution_languages: List[str]
+
+
+class ProblemSolution(BaseModel):
+    language: str
+    code: str
+    explanation: Optional[str] = None
+
+
+class ProblemImportRequest(BaseModel):
+    title: str
+    description: Optional[str]
+    difficulty: Optional[str]
+    tags: Optional[List[str]] = None
+    test_cases: List[ProblemTestCase] = Field(min_length=1)
+    solutions: List[ProblemSolution] = Field(min_length=1)
+    editorial: Optional[str] = None
+
+
+class ProblemSolutionResponse(BaseModel):
+    language: str
+    code: str
+    explanation: Optional[str] = None
+
+
+class ProblemEditorialResponse(BaseModel):
+    editorial: str
 
 
 class ExecuteRequest(BaseModel):
